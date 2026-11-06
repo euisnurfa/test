@@ -18,7 +18,7 @@
    (Table Editor → plans / courses / lessons), atau lewat halaman admin.html.
    ============================================================================= */
 window.CONFIG = {
-  supabaseUrl: "https://emnxwfmngtcbuebvfoye.supabase.co/rest/v1/",        // contoh: "https://abcdefghijkl.supabase.co"
+  supabaseUrl: "https://emnxwfmngtcbuebvfoye.supabase.co/",        // contoh: "https://abcdefghijkl.supabase.co"
   supabaseAnonKey: "sb_publishable_YV3X96VZLEPhXXn6EAqVfA_5ixWox4v",    // contoh: "eyJhbGciOi..." atau "sb_publishable_..."
 
   brand: "Inggris Santai",
