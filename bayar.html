@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pembayaran — Inggris Santai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<nav class="top"><div class="wrap"><a class="logo" href="index.html"><i>Aa</i><span data-brand></span></a><div class="navlinks" id="navlinks"></div></div></nav>
+<main class="pay">
+  <div class="narrow" id="root"><div class="loading">Memuat tagihan…</div></div>
+</main>
+
+<div class="modal" id="cfm" role="dialog" aria-modal="true">
+  <div class="sheet" style="max-width:400px;background-image:none;text-align:center">
+    <h3>Batalkan pesanan?</h3>
+    <p class="muted" style="margin-top:-6px">Jangan batalkan kalau kamu sudah terlanjur membayar.</p>
+    <div class="actions2" style="margin-top:18px"><button class="btn btn-ghost" style="border-radius:10px" data-no>Kembali</button><button class="btn btn-red" data-yes>Ya, batalkan</button></div>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const { $, rp, esc, tgl, sb, C } = U;
+  U.nav();
+  if (!sb) { $("root").innerHTML = '<div class="loading">Belum tersambung ke database.</div>'; return; }
+  const s = await U.requireLogin(); if (!s) return;
+  const id = new URLSearchParams(location.search).get("id");
+  const LABEL = { pending: "MENUNGGU PEMBAYARAN", sent: "MENUNGGU VERIFIKASI", paid: "LUNAS", cancelled: "DIBATALKAN", expired: "KEDALUWARSA" };
+  let o = null, plan = null, poll = null, timer = null;
+
+  async function load() {
+    const { data, error } = await sb.from("orders").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    if (data && data.status === "pending" && new Date(data.batas) < new Date()) data.status = "expired";
+    return data;
+  }
+
+  try { o = await load(); } catch (e) { $("root").innerHTML = `<div class="errbox">${esc(U.err(e))}</div>`; return; }
+  if (!o) { $("root").innerHTML = '<div class="done bad"><div class="ic">?</div><h2>Tagihan tidak ditemukan</h2><p>Pastikan kamu masuk dengan akun yang membuat pesanan ini.</p><a class="btn btn-dark" href="kelas.html">Ke Kelas Saya</a></div>'; return; }
+  const pr = await sb.from("plans").select("nama").eq("id", o.plan_id).maybeSingle();
+  plan = (pr.data && pr.data.nama) || `${o.bulan} bulan`;
+  const m = U.methods().find((x) => x.kode === o.metode) || { nama: o.metode, kode: o.metode };
+
+  function waText() {
+    return `Halo ${C.brand}, saya sudah membayar langganan.\n\nNo. pesanan: ${o.id}\nPaket: ${plan}\nNominal: ${rp(o.total)}\nMetode: ${m.nama}\nEmail akun: ${s.user.email}\n\nBukti pembayaran saya lampirkan.`;
+  }
+  const waLink = C.whatsapp ? `https://wa.me/${C.whatsapp}?text=${encodeURIComponent(waText())}` : "";
+
+  // ---------- tampilan ----------
+  const amt = o.kode_unik ? rp(o.total).replace(/(\d{3})$/, "<em>$1</em>") : rp(o.total);
+  let body, how;
+  if (o.metode === "qris") {
+    body = `<small class="muted">Scan QR Code:</small>
+      <div class="qr"><img id="qrImg" src="${esc(C.qrisGambar)}" alt="QRIS"></div>
+      ${C.qrisNama ? `<div class="an" style="margin:-6px 0 12px">a.n. <b>${esc(C.qrisNama)}</b></div>` : ""}
+      <a class="btn btn-maroon" id="dlQr" href="${esc(C.qrisGambar)}" download="QRIS-${esc(C.brand)}.png">⤓ Download QRIS</a>`;
+    how = ["Buka aplikasi e-wallet atau mobile banking kamu (GoPay, OVO, DANA, ShopeePay, dll).", "Pilih menu Scan QR atau Bayar dengan QR.",
+      "Scan QR code di atas. Kalau membuka dari HP, tekan Download QRIS lalu unggah gambarnya di aplikasi.",
+      `Ketik nominal <b>${rp(o.total)}</b> persis, lalu selesaikan pembayaran.`, "Tekan <b>Konfirmasi via WhatsApp</b> dan lampirkan bukti bayar. Halaman ini berubah otomatis setelah pembayaran disetujui."];
+  } else {
+    body = `<small class="muted">Nomor Rekening</small>
+      <div class="va"><code>${esc(m.nomor || "belum diisi")}</code><button class="copy" data-copy="${esc(m.nomor || "")}" title="Salin">⧉</button></div>
+      ${m.atasNama ? `<div class="an">a.n. <b>${esc(m.atasNama)}</b></div>` : ""}`;
+    how = ["Buka aplikasi mobile banking, internet banking, atau ATM.", `Pilih menu Transfer ke rekening ${esc((m.nama || "").replace("Transfer ", ""))}.`,
+      "Masukkan nomor rekening di atas sebagai tujuan.", `Masukkan nominal <b>${rp(o.total)}</b> persis, lalu selesaikan transfer.`,
+      "Tekan <b>Konfirmasi via WhatsApp</b> dan lampirkan bukti transfer. Halaman ini berubah otomatis setelah pembayaran disetujui."];
+  }
+
+  $("root").innerHTML = `
+    <h1>Pembayaran Langganan</h1>
+    <div class="st" id="st"><span class="dot"></span>Status: <span id="stText"></span></div>
+    <details class="info"><summary>Info Transaksi</summary><dl>
+      <dt>No. pesanan</dt><dd>${esc(o.id)}</dd><dt>Paket</dt><dd>${esc(plan)}</dd><dt>Metode</dt><dd>${esc(m.nama)}</dd>
+      <dt>Dibuat</dt><dd>${tgl(o.created_at, true)}</dd><dt>Bayar sebelum</dt><dd>${tgl(o.batas, true)}</dd></dl></details>
+
+    <div id="vPay">
+      <div class="box">${o.metode === "qris" ? "" : `<div class="hd">${esc(m.nama)}</div>`}<div class="bd">
+        <div class="nominal"><small>Nominal pembayaran:</small><div class="amt"><b>${amt}</b><button class="copy sm" data-copy="${o.total}" title="Salin nominal">⧉</button></div>
+          ${o.kode_unik ? '<div class="uniq">Bayar <b>tepat</b> sampai 3 digit terakhir agar cepat terverifikasi.</div>' : ""}</div>
+        <div class="sep"></div>${body}<div class="timer" id="timer"></div></div></div>
+      <div class="how"><h3>Cara bayar:</h3><ol>${how.map((h) => `<li>${h}</li>`).join("")}</ol></div>
+      <div class="errbox hidden" id="payErr"></div>
+      <div class="actions2">
+        <button class="btn btn-red" id="cancelBtn" type="button">Batalkan</button>
+        ${waLink ? `<a class="btn btn-sun" id="confirmBtn" href="${waLink}" target="_blank" rel="noopener">Konfirmasi via WhatsApp</a>`
+                 : `<button class="btn btn-sun" disabled title="Isi nomor WhatsApp di config.js">Konfirmasi via WhatsApp</button>`}
+      </div>
+    </div>
+
+    <div id="vSent" class="done wait hidden"><div class="ic">⏳</div><h2>Menunggu verifikasi</h2>
+      <p>Terima kasih! Kami sedang mengecek pembayaranmu. Halaman ini akan berubah otomatis begitu disetujui — kamu juga boleh menutupnya dan kembali nanti.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        ${waLink ? `<a class="btn btn-sun" href="${waLink}" target="_blank" rel="noopener">Kirim ulang konfirmasi</a>` : ""}
+        <button class="btn btn-ghost" id="showPay">Lihat detail pembayaran</button></div></div>
+
+    <div id="vPaid" class="done ok hidden"><div class="ic">✓</div><h2>Pembayaran disetujui!</h2>
+      <p>Langganan <b>${esc(plan)}</b> sudah aktif. Selamat belajar!</p><a class="btn btn-primary" href="kelas.html">Masuk ke Kelas →</a></div>
+
+    <div id="vBad" class="done bad hidden"><div class="ic">✕</div><h2 id="badTitle"></h2>
+      <p>Tagihan ini sudah tidak berlaku. Silakan buat pesanan baru.</p><a class="btn btn-dark" href="index.html#langganan-${esc(o.plan_id)}">Buat pesanan baru</a></div>`;
+
+  const img = $("qrImg");
+  if (img) img.onerror = () => { img.parentElement.innerHTML = `<div class="ph">Gambar QRIS belum diunggah.<br>Pemilik situs: unggah <b>${esc(C.qrisGambar)}</b>.</div>`; const dl = $("dlQr"); if (dl) dl.remove(); };
+
+  let showPayOverride = false;
+  function render() {
+    const st = o.status;
+    $("stText").textContent = LABEL[st] || st; $("st").className = "st " + st;
+    $("vPay").classList.toggle("hidden", !(st === "pending" || (st === "sent" && showPayOverride)));
+    $("vSent").classList.toggle("hidden", !(st === "sent" && !showPayOverride));
+    $("vPaid").classList.toggle("hidden", st !== "paid");
+    $("vBad").classList.toggle("hidden", !(st === "cancelled" || st === "expired"));
+    $("badTitle").textContent = st === "expired" ? "Waktu pembayaran habis" : "Pesanan dibatalkan";
+    if (!(st === "pending" || st === "sent")) { clearInterval(poll); clearInterval(timer); }
+  }
+  function tick() {
+    const el = $("timer"); if (!el) return;
+    const sec = Math.max(0, Math.floor((new Date(o.batas) - Date.now()) / 1000));
+    if (!sec && o.status === "pending") { o.status = "expired"; render(); return; }
+    const h = Math.floor(sec / 3600), mi = Math.floor((sec % 3600) / 60), d = sec % 60;
+    el.innerHTML = "Bayar dalam <b>" + (h ? h + " jam " : "") + String(mi).padStart(2, "0") + ":" + String(d).padStart(2, "0") + "</b>";
+  }
+  render(); tick();
+  if (o.status === "pending" || o.status === "sent") {
+    timer = setInterval(tick, 1000);
+    poll = setInterval(async () => { if (document.hidden) return; try { const n = await load(); if (n && n.status !== o.status) { o = n; render(); } } catch (e) {} }, 8000);
+  }
+
+  // ---------- tombol ----------
+  const cb = $("confirmBtn");
+  if (cb) cb.addEventListener("click", async () => {
+    try { const { data } = await sb.rpc("mark_sent", { p_id: o.id }); if (data && data.status) { o = data; showPayOverride = false; render(); } } catch (e) {}
+  });
+  $("showPay").onclick = () => { showPayOverride = true; render(); };
+  const cfm = $("cfm");
+  $("cancelBtn").onclick = () => cfm.classList.add("open");
+  cfm.querySelector("[data-no]").onclick = () => cfm.classList.remove("open");
+  cfm.addEventListener("click", (e) => { if (e.target === cfm) cfm.classList.remove("open"); });
+  cfm.querySelector("[data-yes]").onclick = async () => {
+    cfm.classList.remove("open");
+    const { data, error } = await sb.rpc("cancel_order", { p_id: o.id });
+    if (error) { $("payErr").textContent = U.err(error); $("payErr").classList.remove("hidden"); return; }
+    o = data; render();
+  };
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-copy]"); if (!b || !b.dataset.copy) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); U.toast("Disalin: " + b.dataset.copy); } catch (er) { U.toast("Salin manual: " + b.dataset.copy); }
+  });
+})();
+</script>
+</body>
+</html>

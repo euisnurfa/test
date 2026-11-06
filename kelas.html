@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kelas Saya — Inggris Santai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<nav class="top"><div class="wrap"><a class="logo" href="index.html"><i>Aa</i><span data-brand></span></a><div class="navlinks" id="navlinks"></div></div></nav>
+<main class="member"><div class="wrap" id="root"><div class="loading">Memuat…</div></div></main>
+
+<script>
+(async () => {
+  const { $, rp, esc, tgl, sb } = U;
+  U.nav();
+  if (!sb) { $("root").innerHTML = '<div class="loading">Belum tersambung ke database.</div>'; return; }
+  const s = await U.requireLogin(); if (!s) return;
+
+  const [p, cRes, lRes, oRes, plRes] = await Promise.all([
+    U.profile(),
+    sb.from("courses").select("*").order("urutan"),
+    sb.from("lessons").select("*").order("urutan"),
+    sb.from("orders").select("*").order("created_at", { ascending: false }).limit(20),
+    sb.from("plans").select("id, nama"),
+  ]);
+  const member = U.isMember(p);
+  const courses = cRes.data || [], lessons = lRes.data || [], orders = oRes.data || [];
+  const planName = Object.fromEntries((plRes.data || []).map((x) => [x.id, x.nama]));
+  const methodName = Object.fromEntries(U.methods().map((m) => [m.kode, m.nama]));
+  const LBL = { pending: "Menunggu bayar", sent: "Menunggu verifikasi", paid: "Lunas", cancelled: "Dibatalkan", expired: "Kedaluwarsa" };
+  orders.forEach((o) => { if (o.status === "pending" && new Date(o.batas) < new Date()) o.status = "expired"; });
+  const open = orders.find((o) => o.status === "pending" || o.status === "sent");
+  const first = (p && p.nama ? p.nama : s.user.email).split(" ")[0];
+
+  $("root").innerHTML = `
+    <h1 style="font-size:30px;margin-bottom:16px">Halo, ${esc(first)} 👋</h1>
+    ${member
+      ? `<div class="mstat on"><div><h2>Langganan aktif</h2><p>Berlaku sampai <b>${tgl(p.member_until)}</b>. Semua kelas terbuka.</p></div><a class="btn btn-dark" href="index.html#harga">Perpanjang</a></div>`
+      : `<div class="mstat off"><div><h2>${p && p.member_until ? "Langganan sudah berakhir" : "Belum berlangganan"}</h2>
+           <p>${p && p.member_until ? "Berakhir " + tgl(p.member_until) + ". " : ""}Pilih paket untuk membuka semua kelas. Pelajaran bertanda <span class="tag-free">GRATIS</span> bisa langsung ditonton.</p></div>
+           <a class="btn btn-primary" href="index.html#harga">Pilih Paket</a></div>`}
+    ${open ? `<div class="mstat" style="background:#fff4d6"><div><h2 style="font-size:18px">${open.status === "sent" ? "Pembayaranmu sedang diverifikasi" : "Ada tagihan yang menunggu pembayaran"}</h2>
+        <p>${esc(planName[open.plan_id] || open.bulan + " bulan")} · ${rp(open.total)} · ${esc(methodName[open.metode] || open.metode)}</p></div>
+        <a class="btn btn-sun" href="bayar.html?id=${encodeURIComponent(open.id)}">Lihat tagihan</a></div>` : ""}
+
+    <section id="player" class="hidden" style="margin-bottom:26px"></section>
+
+    <div class="clist">${courses.map((c) => `
+      <div class="cblock"><div class="chd" style="border-color:${esc(c.warna)}"><div class="muted" style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${esc(c.level)}</div><h3>${esc(c.judul)}</h3></div>
+        <div class="lessons">${lessons.filter((l) => l.course_id === c.id).map((l, i) => `
+          <a href="#" data-lesson="${l.id}"><span class="no">${i + 1}</span><span class="t">${esc(l.judul)}${l.gratis ? '<span class="tag-free">GRATIS</span>' : ""}</span>
+            <span class="d">${esc(l.durasi || "")}</span><span class="lock">${l.gratis || member ? "▶" : "🔒"}</span></a>`).join("") || '<div class="lrow muted">Belum ada pelajaran.</div>'}
+        </div></div>`).join("") || '<div class="loading">Belum ada kelas.</div>'}</div>
+
+    ${orders.length ? `<h2 style="font-size:22px;margin:34px 0 12px">Riwayat pembayaran</h2><div class="tblwrap"><table class="tbl">
+      <tr><th>Tanggal</th><th>Paket</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr>
+      ${orders.map((o) => `<tr><td>${tgl(o.created_at)}</td><td>${esc(planName[o.plan_id] || o.bulan + " bulan")}</td><td>${esc(methodName[o.metode] || o.metode)}</td><td>${rp(o.total)}</td>
+        <td>${o.status === "pending" || o.status === "sent" ? `<a class="pill pending" style="text-decoration:none" href="bayar.html?id=${encodeURIComponent(o.id)}">${LBL[o.status]}</a>` : `<span class="pill ${o.status}">${LBL[o.status]}</span>`}</td></tr>`).join("")}
+    </table></div>` : ""}`;
+
+  // ---------- pemutar ----------
+  const player = $("player");
+  async function play(id) {
+    const l = lessons.find((x) => x.id === id); if (!l) return;
+    const c = courses.find((x) => x.id === l.course_id) || {};
+    const list = lessons.filter((x) => x.course_id === l.course_id);
+    const idx = list.findIndex((x) => x.id === id);
+    document.querySelectorAll("[data-lesson]").forEach((a) => a.classList.toggle("cur", +a.dataset.lesson === id));
+    player.classList.remove("hidden");
+    player.innerHTML = `<div class="loading">Memuat video…</div>`;
+    player.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const { data: media } = await sb.from("lesson_media").select("*").eq("lesson_id", id).maybeSingle();
+    const allowed = member || l.gratis || (p && p.is_admin);
+    let screen;
+    if (!allowed) {
+      screen = `<div class="ph"><div><b>🔒 Khusus member</b>Berlangganan untuk membuka pelajaran ini dan semua kelas lainnya.<br><br><a class="btn btn-primary" href="index.html#harga">Pilih Paket</a></div></div>`;
+    } else if (!media || !media.video) {
+      screen = `<div class="ph"><div><b>Video belum tersedia</b>Materi ini sedang disiapkan.</div></div>`;
+    } else if (/^https?:\/\//.test(media.video)) {
+      screen = `<iframe src="${esc(U.toEmbed(media.video))}" title="${esc(l.judul)}" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen></iframe>`;
+    } else {
+      const { data: su, error } = await sb.storage.from("materi").createSignedUrl(media.video, 4 * 3600);
+      screen = error ? `<div class="ph"><div><b>Video tidak bisa dimuat</b>${esc(U.err(error))}</div></div>`
+                     : `<video controls controlsList="nodownload" playsinline oncontextmenu="return false" src="${esc(su.signedUrl)}"></video>`;
+    }
+    player.innerHTML = `
+      <div class="muted" style="font-size:14px">${esc(c.judul || "")} · Pelajaran ${idx + 1}${l.durasi ? " · " + esc(l.durasi) : ""}</div>
+      <h2 style="font-size:24px;margin:4px 0 12px">${esc(l.judul)}</h2>
+      <div class="player">${screen}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center">
+        ${allowed && media && media.pdf_path ? '<button class="btn btn-dark" id="pdfBtn">⤓ Unduh modul PDF</button>' : ""}
+        <span style="flex:1"></span>
+        ${idx > 0 ? `<button class="btn btn-ghost" data-lesson="${list[idx - 1].id}">← Sebelumnya</button>` : ""}
+        ${idx < list.length - 1 ? `<button class="btn btn-primary" data-lesson="${list[idx + 1].id}">Berikutnya →</button>` : ""}
+      </div>`;
+    const pb = $("pdfBtn");
+    if (pb) pb.onclick = async () => {
+      pb.disabled = true;
+      const { data: su, error } = await sb.storage.from("materi").createSignedUrl(media.pdf_path, 600, { download: true });
+      pb.disabled = false;
+      if (error) return U.toast(U.err(error));
+      location.href = su.signedUrl;
+    };
+  }
+  document.addEventListener("click", (e) => { const a = e.target.closest("[data-lesson]"); if (a) { e.preventDefault(); play(+a.dataset.lesson); } });
+})();
+</script>
+</body>
+</html>

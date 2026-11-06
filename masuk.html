@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masuk — Inggris Santai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<nav class="top"><div class="wrap"><a class="logo" href="index.html"><i>Aa</i><span data-brand></span></a><div class="navlinks" id="navlinks"></div></div></nav>
+<main class="auth"><div class="narrow"><div class="card">
+
+  <div data-mode="masuk">
+    <h1>Masuk</h1>
+    <p class="muted" style="margin:0">Pakai email dan password yang kamu buat saat berlangganan.</p>
+    <form id="fMasuk">
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn btn-primary btn-block" type="submit">Masuk</button>
+    </form>
+    <p class="muted" style="font-size:14px;margin:16px 0 0"><a href="#" data-go="lupa">Lupa password?</a> · Belum punya akun? <a href="#" data-go="daftar">Daftar gratis</a></p>
+  </div>
+
+  <div data-mode="daftar" class="hidden">
+    <h1>Daftar</h1>
+    <p class="muted" style="margin:0">Akun gratis untuk menonton video contoh. Berlangganan untuk membuka semua kelas.</p>
+    <form id="fDaftar">
+      <label>Nama lengkap<input name="nama" autocomplete="name" required></label>
+      <label>Nomor WhatsApp<input name="wa" type="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" required></label>
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <label>Password <span class="muted" style="font-weight:400">(min. 8 karakter)</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+      <button class="btn btn-primary btn-block" type="submit">Buat akun</button>
+    </form>
+    <p class="muted" style="font-size:14px;margin:16px 0 0">Sudah punya akun? <a href="#" data-go="masuk">Masuk</a></p>
+  </div>
+
+  <div data-mode="lupa" class="hidden">
+    <h1>Lupa password</h1>
+    <p class="muted" style="margin:0">Kami kirim link untuk membuat password baru ke email kamu.</p>
+    <form id="fLupa">
+      <label>Email<input name="email" type="email" autocomplete="email" required></label>
+      <button class="btn btn-primary btn-block" type="submit">Kirim link</button>
+    </form>
+    <p class="muted" style="font-size:14px;margin:16px 0 0"><a href="#" data-go="masuk">← Kembali ke Masuk</a></p>
+  </div>
+
+  <div data-mode="reset" class="hidden">
+    <h1>Buat password baru</h1>
+    <form id="fReset">
+      <label>Password baru <span class="muted" style="font-weight:400">(min. 8 karakter)</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+      <button class="btn btn-primary btn-block" type="submit">Simpan password</button>
+    </form>
+  </div>
+
+  <div class="errbox hidden" id="err" style="margin-top:14px"></div>
+  <div class="okbox hidden" id="ok" style="margin-top:14px"></div>
+</div></div></main>
+
+<script>
+(async () => {
+  const { $, sb, esc } = U;
+  U.nav();
+  const next = (() => { const n = new URLSearchParams(location.search).get("next") || "kelas.html"; return /^[\w.-]+\.html([?#].*)?$/.test(n) ? n : "kelas.html"; })();
+  function mode(m) {
+    document.querySelectorAll("[data-mode]").forEach((el) => el.classList.toggle("hidden", el.dataset.mode !== m));
+    msg(); const f = document.querySelector(`[data-mode="${m}"] input`); if (f) f.focus();
+  }
+  function msg(err, ok) {
+    $("err").classList.toggle("hidden", !err); $("err").textContent = err || "";
+    $("ok").classList.toggle("hidden", !ok); $("ok").innerHTML = ok || "";
+  }
+  document.addEventListener("click", (e) => { const a = e.target.closest("[data-go]"); if (a) { e.preventDefault(); mode(a.dataset.go); } });
+  if (!sb) return msg("Website belum tersambung ke database.");
+
+  sb.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") mode("reset"); });
+  if (/type=recovery/.test(location.hash)) mode("reset");
+  else if (location.hash === "#daftar") mode("daftar");
+  else if (await U.session()) { location.href = next; return; }
+
+  async function busy(form, fn) {
+    const b = form.querySelector("button[type=submit]"), t = b.textContent;
+    b.disabled = true; b.textContent = "Tunggu…"; msg();
+    try { await fn(Object.fromEntries(new FormData(form).entries())); } catch (e) { msg(U.err(e)); }
+    b.disabled = false; b.textContent = t;
+  }
+
+  $("fMasuk").onsubmit = (e) => { e.preventDefault(); busy(e.target, async (d) => {
+    const { error } = await sb.auth.signInWithPassword({ email: d.email.trim().toLowerCase(), password: d.password });
+    if (error) throw error;
+    location.href = next;
+  }); };
+
+  $("fDaftar").onsubmit = (e) => { e.preventDefault(); busy(e.target, async (d) => {
+    const wa = d.wa.replace(/\D/g, "");
+    if (wa.length < 9) throw new Error("Isi nomor WhatsApp yang aktif.");
+    if (d.password.length < 8) throw new Error("Password minimal 8 karakter.");
+    const email = d.email.trim().toLowerCase();
+    const { data, error } = await sb.auth.signUp({ email, password: d.password,
+      options: { data: { nama: d.nama.trim(), wa }, emailRedirectTo: U.base() + "kelas.html" } });
+    if (error) throw error;
+    if (data.user && data.user.identities && data.user.identities.length === 0) throw new Error("Email ini sudah terdaftar. Silakan masuk.");
+    if (data.session) { location.href = next; return; }
+    msg(null, `Akun dibuat! Cek email <b>${esc(email)}</b> dan klik link konfirmasinya, lalu masuk.`);
+  }); };
+
+  $("fLupa").onsubmit = (e) => { e.preventDefault(); busy(e.target, async (d) => {
+    const { error } = await sb.auth.resetPasswordForEmail(d.email.trim().toLowerCase(), { redirectTo: U.base() + "masuk.html" });
+    if (error) throw error;
+    msg(null, "Kalau email itu terdaftar, link untuk membuat password baru sudah kami kirim. Cek juga folder Spam.");
+  }); };
+
+  $("fReset").onsubmit = (e) => { e.preventDefault(); busy(e.target, async (d) => {
+    if (d.password.length < 8) throw new Error("Password minimal 8 karakter.");
+    const { error } = await sb.auth.updateUser({ password: d.password });
+    if (error) throw error;
+    msg(null, 'Password baru tersimpan. <a href="kelas.html">Lanjut ke Kelas Saya →</a>');
+  }); };
+})();
+</script>
+</body>
+</html>

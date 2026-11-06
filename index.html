@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inggris Santai — Belajar Bahasa Inggris lewat Video & Modul</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<nav class="top"><div class="wrap"><a class="logo" href="index.html"><i>Aa</i><span data-brand></span></a><div class="navlinks" id="navlinks"></div></div></nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Kelas video + modul · berlangganan</span>
+      <h1>Belajar bahasa Inggris <span class="hl">santai</span>, tapi beneran bisa ngomong.</h1>
+      <p class="lead">Satu langganan untuk semua kelas: speaking, grammar, sampai English for Work. Video pendek, modul latihan, belajar dari HP kapan saja.</p>
+      <div class="ctas"><a class="btn btn-primary" href="#harga">Lihat Paket</a><a class="btn btn-ghost" href="#kelas">Lihat Kelas</a></div>
+      <div class="trust"><span>⏱️ <b>5–15 menit</b> per video</span><span>📱 Bisa di HP</span><span>💳 QRIS & transfer bank</span></div>
+    </div>
+    <div class="chat" aria-hidden="true">
+      <div class="bubble b-left">Hi! Where are you from?<small>Speaking Dasar · Small talk</small></div>
+      <div class="bubble b-right">I'm from Bandung. And you?</div>
+      <div class="bubble b-left">Nice! What do you do?</div>
+      <div class="bubble b-right">I work in an office. I'm learning English every day 😄</div>
+    </div>
+  </div>
+</header>
+
+<section class="sec" id="kelas">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Semua termasuk dalam langganan</span><h2>Kelas yang bisa kamu akses</h2><p>Mulai dari level mana pun, pindah kelas kapan saja.</p></div>
+    <div class="courses" id="courses"><div class="loading">Memuat kelas…</div></div>
+  </div>
+</section>
+
+<section class="sec" id="harga" style="background:linear-gradient(180deg,transparent,#fff1df 25%,#fff1df 75%,transparent)">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Paket langganan</span><h2>Pilih lama belajarmu</h2><p>Bayar pakai QRIS atau transfer bank. Setelah pembayaran dicek, semua kelas langsung terbuka di akunmu.</p></div>
+    <div class="plans" id="plans"><div class="loading">Memuat paket…</div></div>
+  </div>
+</section>
+
+<section class="sec" id="faq">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">FAQ</span><h2>Pertanyaan yang sering ditanya</h2></div>
+    <div class="faq">
+      <details><summary>Setelah bayar, kapan bisa mulai belajar?</summary><p>Setelah kamu konfirmasi via WhatsApp, kami cek pembayaranmu. Begitu disetujui, semua kelas otomatis terbuka di akunmu — biasanya kurang dari 1 jam pada jam kerja.</p></details>
+      <details><summary>Bisa bayar pakai apa saja?</summary><p>QRIS (GoPay, OVO, DANA, ShopeePay, semua m-banking) atau transfer bank.</p></details>
+      <details><summary>Kenapa nominalnya ada angka unik di belakang?</summary><p>Supaya pembayaranmu mudah dikenali dan cepat diverifikasi. Bayar tepat sesuai nominal, termasuk 3 digit terakhirnya.</p></details>
+      <details><summary>Kalau perpanjang sebelum habis, sisa hari hilang?</summary><p>Tidak. Masa aktif baru ditambahkan ke sisa masa aktif yang sekarang.</p></details>
+      <details><summary>Bisa ditonton di HP?</summary><p>Bisa, di HP, tablet, maupun laptop.</p></details>
+    </div>
+  </div>
+</section>
+
+<footer><div class="wrap"><div>© <span data-brand></span></div><div id="contact"></div></div></footer>
+
+<!-- CHECKOUT -->
+<div class="modal" id="co" role="dialog" aria-modal="true" aria-labelledby="coTitle">
+  <form class="sheet" id="coForm" novalidate>
+    <button type="button" class="x" data-close aria-label="Tutup">✕</button>
+    <h3 id="coTitle">Berlangganan</h3>
+    <div class="pkg"><div><small>Paket</small><b id="pkgName"></b></div><div class="pr"><s id="pkgCoret"></s><b id="pkgHarga"></b></div></div>
+    <div class="pkg-switch" id="pkgSwitch"></div>
+
+    <div class="fields" id="newUser">
+      <div><label for="fName">Nama lengkap</label><input id="fName" name="nama" autocomplete="name"></div>
+      <div><label for="fWa">Nomor WhatsApp</label><input id="fWa" name="wa" type="tel" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx"></div>
+      <div><label for="fEmail">Email</label><input id="fEmail" name="email" type="email" autocomplete="email"><div class="hint">Dipakai untuk masuk ke kelas.</div></div>
+      <div><label for="fPw">Buat password</label><input id="fPw" name="password" type="password" autocomplete="new-password" minlength="8">
+        <div class="hint">Minimal 8 karakter. Sudah punya akun? <a href="masuk.html?next=index.html%23harga">Masuk dulu</a>.</div></div>
+    </div>
+    <p class="muted hidden" id="loggedAs" style="margin:0 0 14px;font-size:14px"></p>
+
+    <div class="lbl">Pilih metode pembayaran</div>
+    <div class="methods" id="methods"></div>
+    <div class="total"><span>Total</span><b id="pkgTotal"></b></div>
+    <div class="errbox hidden" id="coErr"></div>
+    <div class="okbox hidden" id="coOk"></div>
+    <button class="btn btn-sun btn-block" id="coBtn" type="submit">Lanjutkan →</button>
+  </form>
+</div>
+
+<script>
+(async () => {
+  const { $, rp, esc, sb } = U;
+  U.nav();
+  let PLANS = [], plan = null, session = null;
+
+  // --- metode bayar
+  $("methods").innerHTML = U.methods().map((m, i) => `<label class="m"><input type="radio" name="method" value="${esc(m.kode)}" ${i ? "" : "checked"}>
+    <span class="logo-m">${U.LOGO[m.kode] || esc(m.kode.toUpperCase())}</span><span class="nm">${esc(m.nama)}<small>${esc(m.ket)}</small></span><span class="radio"></span></label>`).join("");
+
+  if (!sb) { $("courses").innerHTML = $("plans").innerHTML = '<div class="loading">Belum tersambung ke database.</div>'; return; }
+
+  // --- muat kelas & paket dari Supabase
+  const [cRes, lRes, pRes] = await Promise.all([
+    sb.from("courses").select("*").order("urutan"),
+    sb.from("lessons").select("id, course_id, gratis"),
+    sb.from("plans").select("*").order("urutan"),
+  ]);
+  if (cRes.error || pRes.error) { $("plans").innerHTML = `<div class="errbox">${esc(U.err(cRes.error || pRes.error))}</div>`; return; }
+  const lessons = lRes.data || [];
+  $("courses").innerHTML = cRes.data.map((c) => {
+    const ls = lessons.filter((l) => l.course_id === c.id);
+    return `<div class="course"><div class="bar" style="background:${esc(c.warna)}"></div><div class="lvl">${esc(c.level)}</div>
+      <h3>${esc(c.judul)}</h3><p>${esc(c.ringkas)}</p><div class="count">${ls.length} pelajaran${ls.some((l) => l.gratis) ? " · ada video gratis" : ""}</div></div>`;
+  }).join("") || '<div class="loading">Belum ada kelas.</div>';
+
+  PLANS = pRes.data;
+  $("plans").innerHTML = PLANS.map((p) => `<div class="plan ${p.unggulan ? "feat" : ""}">
+    ${p.unggulan ? `<span class="flag">${esc(p.catatan)}</span>` : ""}
+    <h3>${esc(p.nama)}</h3><div class="note">${p.unggulan ? "Untuk yang serius sampai lancar" : esc(p.catatan || "")}</div>
+    <div class="price"><b>${rp(p.harga)}</b>${p.harga_coret ? `<s>${rp(p.harga_coret)}</s>` : ""}</div>
+    <div class="per">≈ ${rp(Math.round(p.harga / p.bulan / 1000) * 1000)} / bulan</div>
+    <ul><li>Akses semua kelas</li><li>Video + modul PDF</li><li>Materi baru selama aktif</li></ul>
+    <button class="btn ${p.unggulan ? "btn-primary" : "btn-dark"} btn-block" data-plan="${esc(p.id)}">Langganan ${esc(p.nama)}</button></div>`).join("");
+  $("pkgSwitch").innerHTML = PLANS.map((p) => `<button type="button" data-p="${esc(p.id)}">${esc(p.nama)}</button>`).join("");
+
+  // --- checkout
+  const modal = $("co"), form = $("coForm");
+  function setPlan(id) {
+    plan = PLANS.find((p) => p.id === id) || PLANS[0];
+    $("pkgName").textContent = plan.nama; $("pkgHarga").textContent = rp(plan.harga);
+    $("pkgCoret").textContent = plan.harga_coret ? rp(plan.harga_coret) : ""; $("pkgTotal").textContent = rp(plan.harga);
+    document.querySelectorAll("#pkgSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.p === plan.id));
+  }
+  async function openCo(id) {
+    setPlan(id);
+    session = await U.session();
+    $("newUser").classList.toggle("hidden", !!session);
+    $("loggedAs").classList.toggle("hidden", !session);
+    if (session) $("loggedAs").innerHTML = `Masuk sebagai <b>${esc(session.user.email)}</b>`;
+    ["coErr", "coOk"].forEach((k) => $(k).classList.add("hidden"));
+    modal.classList.add("open"); document.body.style.overflow = "hidden";
+    if (!session) setTimeout(() => $("fName").focus(), 50);
+  }
+  function closeCo() { modal.classList.remove("open"); document.body.style.overflow = ""; }
+  document.addEventListener("click", (e) => { const b = e.target.closest("[data-plan]"); if (b) openCo(b.dataset.plan); });
+  $("pkgSwitch").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setPlan(b.dataset.p); });
+  modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest("[data-close]")) closeCo(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCo(); });
+
+  function showErr(msg) { $("coErr").textContent = msg; $("coErr").classList.remove("hidden"); }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("coErr").classList.add("hidden");
+    const d = Object.fromEntries(new FormData(form).entries());
+    const btn = $("coBtn");
+    try {
+      if (!session) {
+        const wa = (d.wa || "").replace(/\D/g, "");
+        if ((d.nama || "").trim().length < 2) return showErr("Isi nama lengkap.");
+        if (wa.length < 9) return showErr("Isi nomor WhatsApp yang aktif.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email || "")) return showErr("Isi email yang valid.");
+        if ((d.password || "").length < 8) return showErr("Password minimal 8 karakter.");
+        btn.disabled = true; btn.textContent = "Membuat akun…";
+        const email = d.email.trim().toLowerCase();
+        let { data, error } = await sb.auth.signUp({
+          email, password: d.password,
+          options: { data: { nama: d.nama.trim(), wa }, emailRedirectTo: U.base() + "index.html#harga" },
+        });
+        const exists = (error && /already registered/i.test(error.message)) || (data && data.user && data.user.identities && data.user.identities.length === 0);
+        if (exists) {
+          const r = await sb.auth.signInWithPassword({ email, password: d.password });
+          if (r.error) throw new Error("Email ini sudah terdaftar. Password yang kamu masukkan salah — atau masuk dulu lewat menu Masuk.");
+          data = r.data; error = null;
+        }
+        if (error) throw error;
+        session = data.session;
+        if (!session) {
+          $("coOk").innerHTML = `Akun dibuat! Kami mengirim email konfirmasi ke <b>${esc(email)}</b>. Klik link di email itu, lalu pilih paket lagi di halaman ini.`;
+          $("coOk").classList.remove("hidden");
+          btn.disabled = false; btn.textContent = "Lanjutkan →";
+          return;
+        }
+      }
+      btn.disabled = true; btn.textContent = "Membuat tagihan…";
+      const { data: order, error } = await sb.rpc("create_order", { p_plan: plan.id, p_metode: d.method });
+      if (error) throw error;
+      location.href = "bayar.html?id=" + encodeURIComponent(order.id);
+    } catch (ex) {
+      showErr(U.err(ex));
+      btn.disabled = false; btn.textContent = "Lanjutkan →";
+    }
+  });
+
+  const m = location.hash.match(/^#langganan-(.+)$/); if (m) openCo(m[1]);
+})();
+</script>
+</body>
+</html>

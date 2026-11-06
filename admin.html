@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Inggris Santai</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<nav class="top"><div class="wrap"><a class="logo" href="index.html"><i>Aa</i><span data-brand></span></a><div class="navlinks" id="navlinks"></div></div></nav>
+<main class="member"><div class="wrap" id="root"><div class="loading">Memuat…</div></div></main>
+
+<script>
+(async () => {
+  const { $, rp, esc, tgl, sb, C } = U;
+  U.nav();
+  if (!sb) { $("root").innerHTML = '<div class="loading">Belum tersambung ke database.</div>'; return; }
+  const s = await U.requireLogin(); if (!s) return;
+  const me = await U.profile();
+  if (!me || !me.is_admin) {
+    $("root").innerHTML = `<div class="done bad"><div class="ic">🔒</div><h2>Khusus admin</h2>
+      <p>Akun <b>${esc(s.user.email)}</b> belum dijadikan admin. Jalankan perintah di langkah terakhir <code>schema.sql</code> di Supabase SQL Editor.</p></div>`;
+    return;
+  }
+
+  const LBL = { pending: "Menunggu bayar", sent: "Minta dicek", paid: "Lunas", cancelled: "Dibatalkan", expired: "Kedaluwarsa" };
+  const methodName = Object.fromEntries(U.methods().map((m) => [m.kode, m.nama]));
+  let plans = {}, tab = "pesanan";
+
+  $("root").innerHTML = `
+    <h1 style="font-size:30px">Admin</h1>
+    <div class="stats" id="stats"></div>
+    <div class="tabs" id="tabs">
+      <button data-t="pesanan" class="on">Pesanan</button><button data-t="member">Member</button><button data-t="materi">Materi & Video</button>
+    </div>
+    <div id="pane"></div>`;
+  $("tabs").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; tab = b.dataset.t;
+    document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x === b)); show(); };
+
+  const pr = await sb.from("plans").select("*"); plans = Object.fromEntries((pr.data || []).map((p) => [p.id, p]));
+
+  async function stats() {
+    const now = new Date(), monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const [paid, wait, mem] = await Promise.all([
+      sb.from("orders").select("total").eq("status", "paid").gte("paid_at", monthStart),
+      sb.from("orders").select("id", { count: "exact", head: true }).eq("status", "sent"),
+      sb.from("profiles").select("id", { count: "exact", head: true }).gt("member_until", now.toISOString()),
+    ]);
+    const omzet = (paid.data || []).reduce((a, o) => a + o.total, 0);
+    $("stats").innerHTML = `<div class="stat"><small>Omzet bulan ini</small><b>${rp(omzet)}</b></div>
+      <div class="stat"><small>Transaksi lunas bulan ini</small><b>${(paid.data || []).length}</b></div>
+      <div class="stat"><small>Minta dicek</small><b style="color:var(--coral-d)">${wait.count || 0}</b></div>
+      <div class="stat"><small>Member aktif</small><b>${mem.count || 0}</b></div>`;
+  }
+
+  // ================= PESANAN =================
+  async function pesanan() {
+    $("pane").innerHTML = `<div class="toolbar"><select id="flt">
+        <option value="cek">Perlu dicek (konfirmasi masuk)</option><option value="pending">Menunggu bayar</option>
+        <option value="paid">Lunas</option><option value="all">Semua</option></select>
+        <button class="btn btn-ghost btn-sm" id="reload">↻ Muat ulang</button>
+        <span class="muted" style="font-size:13px">Cocokkan nominal (termasuk 3 digit unik) dengan mutasi rekening / QRIS kamu, lalu klik Setujui.</span></div>
+      <div class="tblwrap"><table class="tbl" id="tbl"><tr><td class="muted">Memuat…</td></tr></table></div>`;
+    $("flt").onchange = loadOrders; $("reload").onclick = loadOrders;
+    loadOrders();
+  }
+  async function loadOrders() {
+    const f = $("flt").value;
+    let q = sb.from("orders").select("*, profiles(nama, wa, email)").order("created_at", { ascending: false }).limit(200);
+    if (f === "cek") q = q.eq("status", "sent"); else if (f !== "all") q = q.eq("status", f);
+    const { data, error } = await q;
+    if (error) return ($("tbl").innerHTML = `<tr><td class="errbox">${esc(U.err(error))}</td></tr>`);
+    $("tbl").innerHTML = `<tr><th>Waktu</th><th>Pembeli</th><th>Paket</th><th>Metode</th><th>Nominal</th><th>Status</th><th></th></tr>` +
+      (data.map((o) => {
+        const u = o.profiles || {}, st = o.status === "pending" && new Date(o.batas) < new Date() ? "expired" : o.status;
+        return `<tr><td>${tgl(o.created_at, true)}<br><span class="muted" style="font-size:12px">${esc(o.id)}</span></td>
+          <td>${esc(u.nama || "-")}<br><span class="muted">${esc(u.email || "")}</span>${u.wa ? `<br><a href="https://wa.me/${esc(waIntl(u.wa))}" target="_blank" rel="noopener">WA ${esc(u.wa)}</a>` : ""}</td>
+          <td>${esc((plans[o.plan_id] || {}).nama || o.bulan + " bln")}</td><td>${esc(methodName[o.metode] || o.metode)}</td>
+          <td><b>${rp(o.total)}</b></td><td><span class="pill ${st === "sent" ? "pending" : st}">${LBL[st]}</span></td>
+          <td style="white-space:nowrap">${st === "paid" ? (u.wa ? `<a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="${notifyLink(o, u)}">Kabari via WA</a>` : "")
+            : (st === "cancelled" ? "" : `<button class="btn btn-green btn-sm" data-ok="${esc(o.id)}">✓ Setujui</button> <button class="btn btn-ghost btn-sm" data-no="${esc(o.id)}">Tolak</button>`)}</td></tr>`;
+      }).join("") || `<tr><td colspan="7" class="muted">Tidak ada pesanan.</td></tr>`);
+  }
+  function waIntl(wa) { wa = String(wa).replace(/\D/g, ""); return wa.startsWith("0") ? "62" + wa.slice(1) : wa; }
+  function notifyLink(o, u) {
+    const t = `Halo ${u.nama || ""}, pembayaran langganan ${C.brand} kamu (${o.id}) sudah kami terima. Akunmu sudah aktif — silakan masuk di ${U.base()}kelas.html dengan email ${u.email}. Selamat belajar!`;
+    return `https://wa.me/${waIntl(u.wa)}?text=${encodeURIComponent(t)}`;
+  }
+  document.addEventListener("click", async (e) => {
+    const ok = e.target.closest("[data-ok]"), no = e.target.closest("[data-no]");
+    if (!ok && !no) return;
+    const btn = ok || no, id = btn.dataset.ok || btn.dataset.no;
+    if (btn.dataset.armed !== "1") { btn.dataset.armed = "1"; const t = btn.textContent; btn.textContent = ok ? "Yakin? Klik lagi" : "Yakin tolak?";
+      setTimeout(() => { if (btn.isConnected) { btn.dataset.armed = ""; btn.textContent = t; } }, 3000); return; }
+    btn.disabled = true;
+    const { error } = await sb.rpc(ok ? "approve_order" : "reject_order", { p_id: id });
+    if (error) { U.toast(U.err(error)); btn.disabled = false; return; }
+    U.toast(ok ? "Disetujui — akun pembeli sudah aktif." : "Pesanan ditolak.");
+    loadOrders(); stats();
+  });
+
+  // ================= MEMBER =================
+  async function member() {
+    $("pane").innerHTML = `<div class="toolbar"><input id="q" placeholder="Cari nama / email…" style="font:inherit;padding:9px 11px;border-radius:10px;border:1px solid var(--line);min-width:240px"></div>
+      <div class="tblwrap"><table class="tbl" id="mt"><tr><td class="muted">Memuat…</td></tr></table></div>`;
+    const { data, error } = await sb.from("profiles").select("*").order("created_at", { ascending: false }).limit(500);
+    if (error) return ($("mt").innerHTML = `<tr><td>${esc(U.err(error))}</td></tr>`);
+    const draw = () => {
+      const q = $("q").value.toLowerCase();
+      const rows = data.filter((u) => !q || (u.nama || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q));
+      $("mt").innerHTML = `<tr><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Aktif sampai</th><th></th></tr>` + rows.map((u) => {
+        const on = U.isMember(u);
+        return `<tr><td>${esc(u.nama || "-")}${u.is_admin ? ' <span class="badge">admin</span>' : ""}</td><td>${esc(u.email)}</td><td>${esc(u.wa || "")}</td>
+          <td>${u.member_until ? `<span class="pill ${on ? "paid" : "expired"}">${on ? "" : "Habis · "}${tgl(u.member_until)}</span>` : '<span class="muted">-</span>'}</td>
+          <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-add="${u.id}">+30 hari</button>
+            ${on ? `<button class="btn btn-ghost btn-sm" data-revoke="${u.id}">Cabut akses</button>` : ""}</td></tr>`;
+      }).join("");
+    };
+    $("q").oninput = draw; draw();
+    $("mt").onclick = async (e) => {
+      const a = e.target.closest("[data-add]"), r = e.target.closest("[data-revoke]"); if (!a && !r) return;
+      const u = data.find((x) => x.id === (a ? a.dataset.add : r.dataset.revoke));
+      let until;
+      if (a) { const base = U.isMember(u) ? new Date(u.member_until) : new Date(); until = new Date(base.getTime() + 30 * 864e5); }
+      else { if (r.dataset.armed !== "1") { r.dataset.armed = "1"; r.textContent = "Yakin?"; return; } until = new Date(); }
+      const { data: nu, error } = await sb.rpc("set_member_until", { p_user: u.id, p_until: until.toISOString() });
+      if (error) return U.toast(U.err(error));
+      Object.assign(u, nu); draw(); stats(); U.toast("Masa aktif diperbarui.");
+    };
+  }
+
+  // ================= MATERI =================
+  let courses = [], lessons = [], media = {};
+  async function materi() {
+    $("pane").innerHTML = '<div class="loading">Memuat…</div>';
+    const [c, l, m] = await Promise.all([sb.from("courses").select("*").order("urutan"), sb.from("lessons").select("*").order("urutan"), sb.from("lesson_media").select("*")]);
+    courses = c.data || []; lessons = l.data || []; media = Object.fromEntries((m.data || []).map((x) => [x.lesson_id, x]));
+    $("pane").innerHTML = `
+      <form class="form" id="lf">
+        <h3 id="lfTitle">Tambah pelajaran</h3>
+        <input type="hidden" name="lid">
+        <div class="row2">
+          <label>Judul pelajaran<input name="judul" required></label>
+          <label>Kelas<select name="course_id">${courses.map((x) => `<option value="${x.id}">${esc(x.judul)}</option>`).join("")}</select></label>
+          <label>Durasi<input name="durasi" placeholder="8 menit"></label>
+        </div>
+        <div class="row">
+          <label>Urutan <input name="urutan" type="number" min="0" style="width:80px"></label>
+          <label><input type="checkbox" name="gratis"> Gratis (bisa ditonton tanpa langganan)</label>
+        </div>
+        <label>Video — tempel link YouTube (Unlisted), Vimeo, atau Google Drive
+          <input name="video" placeholder="https://youtu.be/xxxx   atau   https://vimeo.com/12345">
+          <small>…atau unggah file video langsung (lebih aman, tapi kuota Supabase gratis kecil — cocok untuk video pendek):</small>
+          <input name="videoFile" type="file" accept="video/*"></label>
+        <label>Modul PDF (opsional)<input name="pdfFile" type="file" accept="application/pdf"><small id="pdfNow"></small></label>
+        <div class="errbox hidden" id="lfErr"></div>
+        <div class="row"><button class="btn btn-primary" type="submit" id="lfBtn">Simpan pelajaran</button>
+          <button class="btn btn-ghost hidden" type="button" id="lfCancel">Batal edit</button></div>
+      </form>
+
+      <form class="form" id="cf">
+        <h3>Tambah kelas baru</h3>
+        <div class="row2"><label>Judul kelas<input name="judul" required></label><label>Level<input name="level" placeholder="Pemula"></label><label>Warna<input name="warna" type="color" value="#ff6b4a"></label></div>
+        <label>Ringkasan<input name="ringkas"></label>
+        <div class="row"><button class="btn btn-dark" type="submit">Tambah kelas</button></div>
+      </form>
+
+      <div class="clist">${courses.map((c) => `<div class="cblock"><div class="chd" style="border-color:${esc(c.warna)}">
+          <div class="muted" style="font-size:13px;font-weight:700">${esc(c.level || "")}</div><h3>${esc(c.judul)}</h3></div>
+        ${lessons.filter((l) => l.course_id === c.id).map((l) => { const md = media[l.id] || {}; return `<div class="lrow">
+          <span class="no" style="width:28px;height:28px;border-radius:50%;background:var(--sky);display:grid;place-items:center;font-size:13px;font-weight:700">${l.urutan}</span>
+          <span class="t">${esc(l.judul)} ${l.gratis ? '<span class="tag-free">GRATIS</span>' : ""}<br>
+            <span class="muted" style="font-size:12.5px">${md.video ? (/^https?:/.test(md.video) ? "🎬 link video" : "🎬 file video") : '<span class="badge warn">belum ada video</span>'}${md.pdf_path ? " · 📄 PDF" : ""}</span></span>
+          <button class="btn btn-ghost btn-sm" data-edit="${l.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del="${l.id}">Hapus</button></div>`; }).join("") || '<div class="lrow muted">Belum ada pelajaran.</div>'}
+        </div>`).join("")}</div>`;
+
+    const lf = $("lf");
+    lf.urutan.value = 1 + Math.max(0, ...lessons.filter((l) => l.course_id === +lf.course_id.value).map((l) => l.urutan));
+    lf.course_id.onchange = () => { if (!lf.lid.value) lf.urutan.value = 1 + Math.max(0, ...lessons.filter((l) => l.course_id === +lf.course_id.value).map((l) => l.urutan)); };
+    $("lfCancel").onclick = materi;
+    lf.onsubmit = saveLesson;
+    $("cf").onsubmit = async (e) => {
+      e.preventDefault(); const d = Object.fromEntries(new FormData(e.target).entries());
+      const { error } = await sb.from("courses").insert({ judul: d.judul, level: d.level, ringkas: d.ringkas, warna: d.warna, urutan: courses.length + 1 });
+      if (error) return U.toast(U.err(error)); U.toast("Kelas ditambahkan."); materi();
+    };
+    $("pane").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => editLesson(+b.dataset.edit)));
+    $("pane").querySelectorAll("[data-del]").forEach((b) => (b.onclick = () => delLesson(b, +b.dataset.del)));
+  }
+  function editLesson(id) {
+    const l = lessons.find((x) => x.id === id), md = media[id] || {}, f = $("lf");
+    f.lid.value = id; f.judul.value = l.judul; f.course_id.value = l.course_id; f.durasi.value = l.durasi || ""; f.urutan.value = l.urutan;
+    f.gratis.checked = l.gratis; f.video.value = md.video && /^https?:/.test(md.video) ? md.video : "";
+    f.video.placeholder = md.video && !/^https?:/.test(md.video) ? "File video tersimpan: " + md.video + " (kosongkan untuk tetap memakai)" : "https://youtu.be/xxxx";
+    $("pdfNow").textContent = md.pdf_path ? "PDF tersimpan: " + md.pdf_path + " — pilih file baru untuk mengganti." : "";
+    $("lfTitle").textContent = "Edit: " + l.judul; $("lfCancel").classList.remove("hidden");
+    f.scrollIntoView({ behavior: "smooth" }); f.judul.focus();
+  }
+  async function delLesson(btn, id) {
+    if (btn.dataset.armed !== "1") { btn.dataset.armed = "1"; btn.textContent = "Yakin hapus?"; return; }
+    const md = media[id] || {};
+    const files = [md.pdf_path, md.video && !/^https?:/.test(md.video) ? md.video : null].filter(Boolean);
+    if (files.length) await sb.storage.from("materi").remove(files);
+    const { error } = await sb.from("lessons").delete().eq("id", id);
+    if (error) return U.toast(U.err(error)); U.toast("Pelajaran dihapus."); materi();
+  }
+  function safeName(n) { return n.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "").slice(-60); }
+  async function saveLesson(e) {
+    e.preventDefault();
+    const f = e.target, btn = $("lfBtn"), errBox = $("lfErr");
+    errBox.classList.add("hidden");
+    const row = { judul: f.judul.value.trim(), course_id: +f.course_id.value, durasi: f.durasi.value.trim() || null, urutan: +f.urutan.value || 0, gratis: f.gratis.checked };
+    if (!row.judul) return;
+    btn.disabled = true;
+    try {
+      btn.textContent = "Menyimpan…";
+      let id = +f.lid.value || null;
+      if (id) { const { error } = await sb.from("lessons").update(row).eq("id", id); if (error) throw error; }
+      else { const { data, error } = await sb.from("lessons").insert(row).select().single(); if (error) throw error; id = data.id; }
+
+      const old = media[id] || {};
+      const md = { lesson_id: id, video: old.video || null, pdf_path: old.pdf_path || null };
+      const vf = f.videoFile.files[0], pf = f.pdfFile.files[0];
+      if (vf) {
+        btn.textContent = "Mengunggah video…";
+        const path = `video/${id}-${Date.now()}-${safeName(vf.name)}`;
+        const { error } = await sb.storage.from("materi").upload(path, vf, { contentType: vf.type || "video/mp4" });
+        if (error) throw new Error("Gagal mengunggah video: " + U.err(error) + " (file mungkin terlalu besar untuk paket gratis — pakai link YouTube/Vimeo).");
+        if (old.video && !/^https?:/.test(old.video)) await sb.storage.from("materi").remove([old.video]);
+        md.video = path;
+      } else if (f.video.value.trim()) {
+        if (old.video && !/^https?:/.test(old.video)) await sb.storage.from("materi").remove([old.video]);
+        md.video = f.video.value.trim();
+      }
+      if (pf) {
+        btn.textContent = "Mengunggah PDF…";
+        const path = `pdf/${id}-${Date.now()}-${safeName(pf.name)}`;
+        const { error } = await sb.storage.from("materi").upload(path, pf, { contentType: "application/pdf" });
+        if (error) throw new Error("Gagal mengunggah PDF: " + U.err(error));
+        if (old.pdf_path) await sb.storage.from("materi").remove([old.pdf_path]);
+        md.pdf_path = path;
+      }
+      const { error } = await sb.from("lesson_media").upsert(md);
+      if (error) throw error;
+      U.toast("Pelajaran tersimpan."); materi();
+    } catch (ex) {
+      errBox.textContent = U.err(ex); errBox.classList.remove("hidden");
+    }
+    btn.disabled = false; btn.textContent = "Simpan pelajaran";
+  }
+
+  function show() { ({ pesanan, member, materi })[tab](); }
+  stats(); show();
+})();
+</script>
+</body>
+</html>
